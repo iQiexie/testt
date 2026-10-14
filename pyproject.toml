@@ -1,0 +1,111 @@
+[tool.poetry]
+name = "payments-service"
+version = "0.1.0"
+description = "Асинхронный сервис процессинга платежей"
+authors = []
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "~3.12"
+fastapi = "^0.143.1"
+pydantic = "^2.14.1"
+pydantic-settings = "^2.16.0"
+sqlalchemy = { version = ">=2.0.40,<2.1", extras = ["asyncio"] }
+asyncpg = "^0.32.0"
+alembic = "^1.20.0"
+faststream = { version = "^0.7.7", extras = ["rabbit"] }
+structlog = "^26.1.0"
+python-rapidjson = "^1.25"
+uvicorn = "^0.54.0"
+httpx = "^0.28.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.1.1"
+pytest-asyncio = "^1.4.0"
+ruff = "^0.17.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+markers = [
+    "integration: нужны postgres и rabbitmq (docker compose up)",
+    "e2e: нужен весь стек из docker-compose.yml",
+]
+
+
+[tool.ruff]
+line-length = 119
+exclude = [
+    "__pycache__",
+    ".git",
+    ".venv",
+]
+target-version = "py312"
+
+
+[tool.ruff.lint]
+fixable = ["ALL"]
+unfixable = ["ERA001"]
+select = [
+    "E", # pycodestyle (Error)
+    "W", # pycodestyle (Warning)
+    "F", # Pyflakes
+    "PL", # Pylint
+    "ANN", # flake8-annotations
+    "B", # flake8-bugbear
+    "ERA", # eradicate
+    "I", # isort
+    "ARG", # flake8-unused-arguments
+    "N", # pep8-naming,
+    "S", # flake8-bandit
+    "T20", # flake8-print
+    "Q", # flake8-quotes
+]
+ignore = [
+    "ANN002", # Missing type annotation for `*args`
+    "ANN003", # Missing type annotation for `**kwargs`
+    "ANN204", # Missing return type annotation for special method
+    "ANN401", #  Dynamically typed expressions (typing.Any) are disallowed
+    "B008", # Do not perform function call in argument defaults
+    "B904", # Within an except clause, raise exceptions with `raise ... from err` or `raise ... from None`
+    "N818", # Exception name should be named with an Error suffix,
+    "PLR0911", # Too many return statements
+    "PLR0912", # Too many branches
+    "PLR0913", # Too many arguments to function call
+    "PLR0915", # Too many statements
+    "S101", # Use of assert detected
+    "S311", # Standard pseudo-random generators are not suitable for cryptographic purposes
+    "PLC0415", # `import` should be at the top-level — ленивые импорты в Services разрывают циклы
+]
+
+
+[tool.ruff.lint.per-file-ignores]
+"app/api/dto/*" = [
+    "ANN001", # Missing type annotation for function argument
+    "N805", # First argument of a method should be named `self`
+]
+"app/db/migrations/*" = [
+    "E501", # Line too long
+]
+"app/api/routes/*" = [
+    "ANN201", # Missing return type annotation for public function
+]
+"tests/*" = [
+    "ANN", # аннотации в тестах не нужны
+    "PLR2004", # magic values в assert-ах — норма
+    "S105", # тестовые секреты
+    "S106",
+]
+
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"

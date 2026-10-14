@@ -1,0 +1,81 @@
+name: payments
+
+x-app: &app
+  build: .
+  image: payments-service:latest
+  restart: unless-stopped
+  env_file:
+    - .env
+  # В контейнерах ходим в соседние сервисы по имени, а не по localhost из .env
+  environment:
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    RABBITMQ_HOST: rabbitmq
+    RABBITMQ_PORT: 5672
+  # Чтобы webhook можно было принимать сервером, запущенным на хосте (README, e2e-тесты)
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  api:
+    <<: *app
+    # Миграции накатываются на старте: если упадут — API не поднимется
+    command: sh -c "alembic upgrade head && uvicorn app.main:get_app --factory --host 0.0.0.0 --port 8000"
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  consumer:
+    <<: *app
+    command: python -m app.consumer.main
+    depends_on:
+      # healthy API = миграции уже применены
+      api:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
